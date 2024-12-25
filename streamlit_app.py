@@ -167,7 +167,7 @@ if check_password():
                 
                 if not display_df.empty or user != "Alan":
                     edited_df = st.data_editor(
-                        data=display_df[["Date", "Regular", "Holiday", "Sick", "Vacation"]],
+                        data=display_df[["Date", "Regular", "Sick", "Vacation", "Holiday"]],
                         hide_index=True,
                         use_container_width=False,
                         num_rows="fixed",
@@ -223,7 +223,7 @@ if check_password():
                                 month, day = date_str.split('/')
                                 full_date = f"{pd.Timestamp.now().year}-{month}-{day}"
                                 
-                                for time_type in ['Regular', 'Holiday', 'Sick', 'Vacation']:
+                                for time_type in ['Regular', 'Sick', 'Vacation', 'Holiday']:
                                     if row[time_type] != 0:
                                         records.append({
                                             'User': current_user,
@@ -269,9 +269,9 @@ if check_password():
                     sums_df = pd.DataFrame({
                         'Date': ['Totals'],
                         'Regular': [display_df['Regular'].sum()],
-                        'Holiday': [display_df['Holiday'].sum()],
                         'Sick': [display_df['Sick'].sum()],
-                        'Vacation': [display_df['Vacation'].sum()]
+                        'Vacation': [display_df['Vacation'].sum()],
+                        'Holiday': [display_df['Holiday'].sum()]
                     })
                     
                     # Display sums
