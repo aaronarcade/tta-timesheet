@@ -3,9 +3,17 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
 
-# Initialize session state for authentication
+# Set page to wide mode and title
+st.set_page_config(
+    page_title="TTA Timesheet",
+    layout="wide"
+)
+
+# Initialize session states
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
+if 'sidebar_state' not in st.session_state:
+    st.session_state.sidebar_state = False
 
 def check_password():
     """Returns `True` if the user had the correct password."""
@@ -13,6 +21,7 @@ def check_password():
         """Checks whether a password entered by the user is correct."""
         if st.session_state["password"] == st.secrets["password"]:
             st.session_state.authenticated = True
+            st.session_state.sidebar_state = True  # Open sidebar after authentication
             del st.session_state["password"]
         else:
             st.error("😕 Password incorrect")
@@ -46,19 +55,26 @@ if check_password():
     # Convert Date column to datetime
     df['Date'] = pd.to_datetime(df['Date'])
     
+    # Initialize user variable
+    user = "Stacey"
+    
     # Sidebar for user selection
     with st.sidebar:
         st.image("tta_logo.png", width=200)
         users = df['User'].unique().tolist()
         user = st.selectbox(
             "Select User",
-            options=["Select a user"] + users
+            options=["Select a user"] + users,
+            key="user_select",
+            index=users.index("Stacey") + 1  # +1 because of "Select a user" option
         )
+        if user != "Select a user":
+            st.success(f"Hours for {user} successfully loaded. Please close sidebar with arrow above.")
 
     # Main content
-    if user != "Select a user":
+    if user != "Select a user":        
         # Add title
-        st.title(f"{'Viewing' if user == 'Alan' else 'Entering'} Hours")
+        st.title(f"{'Viewing' if user == 'Alan' else f'Entering Hours for {user}'}")
         
         # Get current date and create future dates
         current_date = pd.Timestamp.now()
@@ -148,21 +164,96 @@ if check_password():
                     edited_df = st.data_editor(
                         data=display_df[["Date", "Regular", "Holiday", "Sick", "Vacation"]],
                         hide_index=True,
-                        use_container_width=True,
+                        use_container_width=False,
                         num_rows="fixed",
                         height=min(100 + len(display_df) * 35, 600),
                         column_config={
                             "Date": st.column_config.TextColumn(
                                 "Date",
-                                width=150,
+                                width=75,
                                 disabled=True,
                             ),
-                            "Regular": st.column_config.NumberColumn("Regular Hours"),
-                            "Holiday": st.column_config.NumberColumn("Holiday Hours"),
-                            "Sick": st.column_config.NumberColumn("Sick Hours"),
-                            "Vacation": st.column_config.NumberColumn("Vacation Hours")
+                            "Regular": st.column_config.NumberColumn(
+                                "Regular",
+                                width=55,
+                                min_value=0,
+                                max_value=24,
+                                step=1,
+                            ),
+                            "Holiday": st.column_config.NumberColumn(
+                                "Holiday",
+                                width=55,
+                                min_value=0,
+                                max_value=24,
+                                step=1,
+                            ),
+                            "Sick": st.column_config.NumberColumn(
+                                "Sick",
+                                width=55,
+                                min_value=0,
+                                max_value=24,
+                                step=1,
+                            ),
+                            "Vacation": st.column_config.NumberColumn(
+                                "Vacation",
+                                width=55,
+                                min_value=0,
+                                max_value=24,
+                                step=1,
+                            )
                         },
-                        key=f"timesheet_editor_{current_user}"
+                        key=f"timesheet_editor_{current_user}",
+                        disabled=user == "Alan"
+                    )
+                    
+                    if edited_df is not None and user != "Alan":
+                        if st.button("Save Changes", type="primary"):
+                            st.toast(f"Hours saved for week of {selected_week}", icon="✅")
+                            st.balloons()
+                    
+                    # Calculate sums
+                    sums_df = pd.DataFrame({
+                        'Date': ['Total Hours'],
+                        'Regular': [display_df['Regular'].sum()],
+                        'Holiday': [display_df['Holiday'].sum()],
+                        'Sick': [display_df['Sick'].sum()],
+                        'Vacation': [display_df['Vacation'].sum()]
+                    })
+                    
+                    # Display sums
+                    st.data_editor(
+                        data=sums_df,
+                        hide_index=True,
+                        use_container_width=False,
+                        num_rows="fixed",
+                        column_config={
+                            "Date": st.column_config.TextColumn(
+                                "Date",
+                                width=75,
+                                disabled=True,
+                            ),
+                            "Regular": st.column_config.NumberColumn(
+                                "Regular",
+                                width=55,
+                                disabled=True,
+                            ),
+                            "Holiday": st.column_config.NumberColumn(
+                                "Holiday",
+                                width=55,
+                                disabled=True,
+                            ),
+                            "Sick": st.column_config.NumberColumn(
+                                "Sick",
+                                width=55,
+                                disabled=True,
+                            ),
+                            "Vacation": st.column_config.NumberColumn(
+                                "Vacation",
+                                width=55,
+                                disabled=True,
+                            )
+                        },
+                        key=f"sums_editor_{current_user}"
                     )
     else:
         st.write("Please select a user")
