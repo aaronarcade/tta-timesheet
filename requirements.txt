@@ -1,0 +1,6 @@
+streamlit
+gspread
+oauth2client
+numpy==1.23.5
+pandas==1.5.3
+jinja2>=3.0.0 
