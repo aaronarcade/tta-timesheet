@@ -57,17 +57,17 @@ if check_password():
     
     # Initialize user variable
     user = "Stacey"
-    colwidth = 85
+    colwidth = 90
     
     # Sidebar for user selection
     with st.sidebar:
         st.image("tta_logo.png", width=200)
-        users = df['User'].unique().tolist()
+        default_users = ["Stacey", "Aaron", "Cindy", "Alan"]
         user = st.selectbox(
             "Select User",
-            options=["Select a user"] + users,
+            options=["Select a user"] + default_users,
             key="user_select",
-            index=users.index("Stacey") + 1  # +1 because of "Select a user" option
+            index=default_users.index("Stacey") + 1  # +1 because of "Select a user" option
         )
         if user != "Select a user":
             st.success(f"Hours for {user} successfully loaded. Please close sidebar with arrow above.")
@@ -75,7 +75,7 @@ if check_password():
     # Main content
     if user != "Select a user":        
         # Add title
-        st.title(f"{'Viewing' if user == 'Alan' else f'Entering Hours for {user}'}")
+        st.title(f"{'Viewing' if user == 'Alan' else f'Hours for {user}'}")
         
         # Get current date and create future dates
         current_date = pd.Timestamp.now()
@@ -108,7 +108,7 @@ if check_password():
         week_end = week_start + pd.Timedelta(days=13)
         
         # Show all users if Alan, otherwise just selected user
-        users_to_display = users if user == "Alan" else [user]
+        users_to_display = default_users if user == "Alan" else [user]
         
         for current_user in users_to_display:
             if user == "Alan":
@@ -120,6 +120,9 @@ if check_password():
                 (df['Date'] >= week_start) & 
                 (df['Date'] <= week_end)
             ]
+            
+            if user == "Alan" and user_df.empty:
+                st.info(f"No hours entered for {current_user}")
             
             if not user_df.empty or user != "Alan":
                 # Pivot and prepare data
@@ -168,7 +171,7 @@ if check_password():
                         hide_index=True,
                         use_container_width=False,
                         num_rows="fixed",
-                        height=min(0 + len(display_df) * 35, 600),
+                        height=min(38 + len(display_df) * 35, 600),
                         column_config={
                             "Date": st.column_config.TextColumn(
                                 "Date",
@@ -177,21 +180,21 @@ if check_password():
                             ),
                             "Regular": st.column_config.NumberColumn(
                                 "Regular",
-                                width=colwidth,
+                                width=colwidth-5,
                                 min_value=0,
                                 max_value=24,
                                 step=1,
                             ),
                             "Holiday": st.column_config.NumberColumn(
                                 "Holiday",
-                                width=colwidth,
+                                width=colwidth-5,
                                 min_value=0,
                                 max_value=24,
                                 step=1,
                             ),
                             "Sick": st.column_config.NumberColumn(
                                 "Sick",
-                                width=colwidth,
+                                width=colwidth-20,
                                 min_value=0,
                                 max_value=24,
                                 step=1,
@@ -210,15 +213,61 @@ if check_password():
                     
                     if edited_df is not None and user != "Alan":
                         if st.button("Save Changes", type="primary"):
-                            st.toast(f"Hours saved for week of {selected_week}", icon="✅")
+                            # Create records with timestamp
+                            records = []
+                            current_timestamp = pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
+                            
+                            for _, row in edited_df.iterrows():
+                                # Parse the date correctly by adding current year
+                                date_str = row['Date'].split(' ')[1]  # Get '12/11' from 'Wed 12/11'
+                                month, day = date_str.split('/')
+                                full_date = f"{pd.Timestamp.now().year}-{month}-{day}"
+                                
+                                for time_type in ['Regular', 'Holiday', 'Sick', 'Vacation']:
+                                    if row[time_type] != 0:
+                                        records.append({
+                                            'User': current_user,
+                                            'Date': full_date,
+                                            'TimeType': time_type,
+                                            'Hours': row[time_type],
+                                            'LastUpdated': current_timestamp
+                                        })
+                            
+                            # Get all existing data
+                            all_data = sheet.get_all_records()
+                            
+                            # Filter out records for current user and date range
+                            filtered_data = [
+                                row for row in all_data 
+                                if not (
+                                    row['User'] == current_user and
+                                    pd.to_datetime(row['Date']) >= pd.to_datetime(week_start) and
+                                    pd.to_datetime(row['Date']) <= pd.to_datetime(week_end)
+                                )
+                            ]
+                            
+                            # Combine filtered data with new records
+                            updated_data = filtered_data + records
+                            
+                            # Clear and update sheet
+                            sheet.clear()
+                            if updated_data:
+                                sheet.append_rows([list(updated_data[0].keys())])  # Headers
+                                sheet.append_rows([list(r.values()) for r in updated_data])
+                            
+                            # Reload the data to get latest timestamp
+                            data = sheet.get_all_records()
+                            df = pd.DataFrame(data)
+                            df['Date'] = pd.to_datetime(df['Date'])
+                            
+                            st.success(f"Hours saved for week of {selected_week}")
                             st.balloons()
-                            # Update display_df with edited values for totals
                             display_df = edited_df
                     
                     # Add caption and calculate sums
                     st.caption("Bi-weekly Totals")
                     sums_df = pd.DataFrame({
-                        'Date': ['Total Hours'],
+                        'Date': ['Totals'],
                         'Regular': [display_df['Regular'].sum()],
                         'Holiday': [display_df['Holiday'].sum()],
                         'Sick': [display_df['Sick'].sum()],
@@ -260,5 +309,21 @@ if check_password():
                         },
                         key=f"sums_editor_{current_user}"
                     )
+                    
+                    # Display last updated time
+                    if not df.empty and 'LastUpdated' in df.columns:
+                        last_updated = df[
+                            (df['User'] == current_user)
+                        ]['LastUpdated'].max()
+                        if pd.notna(last_updated) and last_updated is not None:
+                            try:
+                                formatted_time = pd.to_datetime(last_updated, format='%Y-%m-%d %H:%M:%S').strftime('%B %d, %Y at %I:%M %p')
+                                st.info(f"Last updated: {formatted_time}")
+                            except:
+                                st.info("No previous updates")
+                        else:
+                            st.info("No previous updates")
+                    else:
+                        st.info("No previous updates")
     else:
         st.write("Please select a user")
