@@ -57,6 +57,7 @@ if check_password():
     
     # Initialize user variable
     user = "Stacey"
+    colwidth = 85
     
     # Sidebar for user selection
     with st.sidebar:
@@ -147,9 +148,10 @@ if check_password():
                     if col not in pivoted_df.columns:
                         pivoted_df[col] = 0
                 
-                # Format the dates
+                # Format the dates and limit to 14 rows
                 display_df = pivoted_df.reset_index()
                 display_df['Date'] = display_df['Date'].dt.strftime('%a %m/%d')
+                display_df = display_df.head(14)  # Only take first 14 rows
                 
                 # Filter out zero rows for Alan's view
                 if user == "Alan":
@@ -166,7 +168,7 @@ if check_password():
                         hide_index=True,
                         use_container_width=False,
                         num_rows="fixed",
-                        height=min(100 + len(display_df) * 35, 600),
+                        height=min(0 + len(display_df) * 35, 600),
                         column_config={
                             "Date": st.column_config.TextColumn(
                                 "Date",
@@ -175,28 +177,28 @@ if check_password():
                             ),
                             "Regular": st.column_config.NumberColumn(
                                 "Regular",
-                                width=55,
+                                width=colwidth,
                                 min_value=0,
                                 max_value=24,
                                 step=1,
                             ),
                             "Holiday": st.column_config.NumberColumn(
                                 "Holiday",
-                                width=55,
+                                width=colwidth,
                                 min_value=0,
                                 max_value=24,
                                 step=1,
                             ),
                             "Sick": st.column_config.NumberColumn(
                                 "Sick",
-                                width=55,
+                                width=colwidth,
                                 min_value=0,
                                 max_value=24,
                                 step=1,
                             ),
                             "Vacation": st.column_config.NumberColumn(
                                 "Vacation",
-                                width=55,
+                                width=colwidth,
                                 min_value=0,
                                 max_value=24,
                                 step=1,
@@ -210,8 +212,11 @@ if check_password():
                         if st.button("Save Changes", type="primary"):
                             st.toast(f"Hours saved for week of {selected_week}", icon="✅")
                             st.balloons()
+                            # Update display_df with edited values for totals
+                            display_df = edited_df
                     
-                    # Calculate sums
+                    # Add caption and calculate sums
+                    st.caption("Bi-weekly Totals")
                     sums_df = pd.DataFrame({
                         'Date': ['Total Hours'],
                         'Regular': [display_df['Regular'].sum()],
@@ -234,22 +239,22 @@ if check_password():
                             ),
                             "Regular": st.column_config.NumberColumn(
                                 "Regular",
-                                width=55,
+                                width=colwidth,
                                 disabled=True,
                             ),
                             "Holiday": st.column_config.NumberColumn(
                                 "Holiday",
-                                width=55,
+                                width=colwidth,
                                 disabled=True,
                             ),
                             "Sick": st.column_config.NumberColumn(
                                 "Sick",
-                                width=55,
+                                width=colwidth,
                                 disabled=True,
                             ),
                             "Vacation": st.column_config.NumberColumn(
                                 "Vacation",
-                                width=55,
+                                width=colwidth,
                                 disabled=True,
                             )
                         },
