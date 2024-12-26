@@ -448,7 +448,7 @@ if check_password():
                 
                 # Update EnteredPayment to empty for matching rows
                 updated_data = []
-                st.write(all_data)
+                # st.write(all_data)
                 for row in all_data:
                     st.write(row)
                     if (
