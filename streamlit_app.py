@@ -14,6 +14,8 @@ if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 if 'sidebar_state' not in st.session_state:
     st.session_state.sidebar_state = False
+if 'selected_week' not in st.session_state:
+    st.session_state.selected_week = None
 
 def check_password():
     """Returns `True` if the user had the correct password."""
@@ -117,14 +119,23 @@ if check_password():
         # Set default index to current period if it exists in week_starts
         default_index = week_starts.index(current_period_str) if current_period_str in week_starts else 0
         
+        # Initialize selected_week in session state if not already set
+        if st.session_state.selected_week is None:
+            st.session_state.selected_week = week_starts[default_index]
+
         # Add week selector
         selected_week = st.selectbox(
             "Select Week Beginning",
             options=week_starts,
             format_func=lambda x: f"Week of {x}",
-            index=default_index
+            index=week_starts.index(st.session_state.selected_week),
+            key='week_selector'
         )
         
+        # Update session state when selection changes
+        if selected_week != st.session_state.selected_week:
+            st.session_state.selected_week = selected_week
+
         # Convert selected week to datetime and create full date range
         week_start = pd.to_datetime(selected_week)
         week_end = week_start + pd.Timedelta(days=13)
@@ -359,5 +370,50 @@ if check_password():
                             st.info("No previous updates")
                     else:
                         st.info("No previous updates")
+
+        # Add "Entered for Payment" button at the very bottom of the page for Alan's view
+        if user == "Alan":
+            st.markdown("---")  # Add a visual separator
+            
+            # Check if all displayed rows are already entered for payment
+            current_period_data = [
+                row for row in data 
+                if (
+                    row['User'] in users_to_display and
+                    pd.to_datetime(row['Date']) >= pd.to_datetime(week_start) and
+                    pd.to_datetime(row['Date']) <= pd.to_datetime(week_end)
+                )
+            ]
+            
+            all_entered = all(
+                row.get('EnteredPayment', 0) == 1 
+                for row in current_period_data
+            ) if current_period_data else False
+            
+            if all_entered:
+                st.success("All hours in this period have been entered for payment")
+            elif st.button("Enter for Payment", type="primary", key="payment_button", disabled=all_entered):
+                # Get all existing data
+                all_data = sheet.get_all_records()
+                
+                # Update EnteredPayment to 1 for matching rows
+                updated_data = []
+                for row in all_data:
+                    if (
+                        row['User'] in users_to_display and
+                        pd.to_datetime(row['Date']) >= pd.to_datetime(week_start) and
+                        pd.to_datetime(row['Date']) <= pd.to_datetime(week_end)
+                    ):
+                        row['EnteredPayment'] = 1
+                    updated_data.append(row)
+                
+                # Clear and update sheet
+                sheet.clear()
+                if updated_data:
+                    sheet.append_rows([list(updated_data[0].keys())])  # Headers
+                    sheet.append_rows([list(r.values()) for r in updated_data])
+                
+                st.success(f"Payment entry recorded for all users in selected period")
+                st.experimental_rerun()  # Rerun to update the button state
     else:
         st.write("Please select a user")
