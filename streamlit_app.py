@@ -2,6 +2,7 @@ import streamlit as st
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import pandas as pd
+import pytz
 
 # Set page to wide mode and title
 st.set_page_config(
@@ -16,6 +17,8 @@ if 'sidebar_state' not in st.session_state:
     st.session_state.sidebar_state = False
 if 'selected_week' not in st.session_state:
     st.session_state.selected_week = None
+
+eastern = pytz.timezone('US/Eastern')
 
 def check_password():
     """Returns `True` if the user had the correct password."""
@@ -63,7 +66,6 @@ if check_password():
     
     # Sidebar for user selection
     with st.sidebar:
-        st.image("tta_logo.png", width=200)
         default_users = ["Stacey", "Aaron", "Daisy","Cindy", "Alan"]
         user = st.selectbox(
             "Select User",
@@ -73,6 +75,14 @@ if check_password():
         )
         if user != "Select a user":
             st.success(f"Hours for {user} successfully loaded. Please close sidebar with arrow above.")
+
+    # Use st.logo to display the logo in the app
+    st.logo(
+        "tta_logo.png",  # Replace with the path to your logo
+        size="large",  # You can choose "small", "medium", or "large"
+        link="https://tintoyarcade.com",  # Optional: Add a link to your website
+        icon_image="tta_logo.png"  # Optional: Add a smaller icon for when the sidebar is closed
+    )
 
     # Main content
     if user != "Select a user":        
@@ -254,7 +264,7 @@ if check_password():
                         if st.button("Save Changes", type="primary"):
                             # Create records with timestamp
                             records = []
-                            current_timestamp = pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
+                            current_timestamp = pd.Timestamp.now(tz=eastern).strftime('%Y-%m-%d %H:%M:%S')
                             
                             for _, row in edited_df.iterrows():
                                 # Parse the date correctly by adding current year
@@ -412,7 +422,7 @@ if check_password():
                 
                 # Update EnteredPayment to datetime for matching rows
                 updated_data = []
-                payment_timestamp = pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
+                payment_timestamp = pd.Timestamp.now(tz=eastern).strftime('%Y-%m-%d %H:%M:%S')
                 for row in all_data:
                     if (
                         row['User'] in users_to_display and
