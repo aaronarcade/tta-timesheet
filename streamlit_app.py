@@ -62,7 +62,7 @@ if check_password():
     # Sidebar for user selection
     with st.sidebar:
         st.image("tta_logo.png", width=200)
-        default_users = ["Stacey", "Aaron", "Cindy", "Alan"]
+        default_users = ["Stacey", "Aaron", "Daisy""Cindy", "Alan"]
         user = st.selectbox(
             "Select User",
             options=["Select a user"] + default_users,
@@ -183,28 +183,32 @@ if check_password():
                                 width=colwidth-5,
                                 min_value=0,
                                 max_value=24,
-                                step=1,
+                                step=0.25,
+                                format="%.2f"
                             ),
                             "Holiday": st.column_config.NumberColumn(
                                 "Holiday",
                                 width=colwidth-5,
                                 min_value=0,
                                 max_value=24,
-                                step=1,
+                                step=0.25,
+                                format="%.2f"
                             ),
                             "Sick": st.column_config.NumberColumn(
                                 "Sick",
                                 width=colwidth-20,
                                 min_value=0,
                                 max_value=24,
-                                step=1,
+                                step=0.25,
+                                format="%.2f"
                             ),
                             "Vacation": st.column_config.NumberColumn(
                                 "Vacation",
                                 width=colwidth,
                                 min_value=0,
                                 max_value=24,
-                                step=1,
+                                step=0.25,
+                                format="%.2f"
                             )
                         },
                         key=f"timesheet_editor_{current_user}",
