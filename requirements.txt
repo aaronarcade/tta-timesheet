@@ -3,4 +3,4 @@ gspread
 oauth2client
 numpy>=1.26.0
 pandas>=2.1.0
-jinja2>=3.0.0 
+jinja2>=3.0.0

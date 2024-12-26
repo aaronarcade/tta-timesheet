@@ -62,7 +62,7 @@ if check_password():
     # Sidebar for user selection
     with st.sidebar:
         st.image("tta_logo.png", width=200)
-        default_users = ["Stacey", "Aaron", "Daisy", "Cindy", "Alan"]
+        default_users = ["Stacey", "Aaron", "Daisy","Cindy", "Alan"]
         user = st.selectbox(
             "Select User",
             options=["Select a user"] + default_users,
@@ -96,20 +96,10 @@ if check_password():
         dates = dates[::2]  # Skip every other week
         week_starts = [date.start_time.strftime('%m/%d/%Y') for date in dates]
         
-        # Find the current bi-weekly period
-        current_period = pd.Timestamp.now().to_period('W-TUE')
-        current_period_index = None
-        
-        for i, date in enumerate(dates):
-            if current_period >= date and current_period < (date + 2):  # Check if current date falls within the bi-weekly period
-                current_period_index = i
-                break
-        
-        # Add week selector with default to current period if found
+        # Add week selector
         selected_week = st.selectbox(
             "Select Week Beginning",
             options=week_starts,
-            index=current_period_index if current_period_index is not None else 0,
             format_func=lambda x: f"Week of {x}"
         )
         
@@ -156,10 +146,12 @@ if check_password():
                     how='left'
                 ).fillna(0)
                 
-                # Ensure all required columns exist
+                # Ensure all required columns exist and replace None with 0
                 for col in ['Regular', 'Holiday', 'Sick', 'Vacation']:
                     if col not in pivoted_df.columns:
                         pivoted_df[col] = 0
+                    else:
+                        pivoted_df[col] = pivoted_df[col].replace({None: 0})
                 
                 # Format the dates and limit to 14 rows
                 display_df = pivoted_df.reset_index()
@@ -238,12 +230,14 @@ if check_password():
                                 full_date = f"{pd.Timestamp.now().year}-{month}-{day}"
                                 
                                 for time_type in ['Regular', 'Sick', 'Vacation', 'Holiday']:
-                                    if row[time_type] != 0:
+                                    # Replace None with 0 and ensure it's a valid number
+                                    hours = 0 if pd.isna(row[time_type]) else float(row[time_type])
+                                    if hours != 0:  # Only add non-zero entries
                                         records.append({
                                             'User': current_user,
                                             'Date': full_date,
                                             'TimeType': time_type,
-                                            'Hours': row[time_type],
+                                            'Hours': hours,
                                             'LastUpdated': current_timestamp
                                         })
                             
