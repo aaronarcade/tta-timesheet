@@ -440,5 +440,34 @@ if check_password():
                 
                 formatted_time = pd.to_datetime(payment_timestamp).strftime('%B %d, %Y at %I:%M %p')
                 st.success(f"Payment entry recorded for all users in selected period on {formatted_time}")
+
+                 # Add "Reset Week" button
+            if st.button("Reset Week", type="secondary", key="reset_week_button"):
+                # Get all existing data
+                all_data = sheet.get_all_records()
+                
+                # Update EnteredPayment to empty for matching rows
+                updated_data = []
+                st.write(all_data)
+                for row in all_data:
+                    st.write(row)
+                    if (
+                        row['User'] in users_to_display and
+                        pd.to_datetime(row['Date']) >= pd.to_datetime(week_start) and
+                        pd.to_datetime(row['Date']) <= pd.to_datetime(week_end) and
+                        float(row.get('Hours', 0)) > 0
+                    ):
+                    
+                        row['EnteredPayment'] = ''  # Reset the EnteredPayment field
+                    updated_data.append(row)
+                
+                # Clear and update sheet
+                sheet.clear()
+                if updated_data:
+                    sheet.append_rows([list(updated_data[0].keys())])  # Headers
+                    sheet.append_rows([list(r.values()) for r in updated_data])
+                
+                st.success("Payment entries have been reset for the selected period.")
+                st.rerun()
     else:
         st.write("Please select a user")
