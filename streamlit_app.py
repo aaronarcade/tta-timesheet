@@ -62,7 +62,7 @@ if check_password():
     # Sidebar for user selection
     with st.sidebar:
         st.image("tta_logo.png", width=200)
-        default_users = ["Stacey", "Aaron", "Daisy""Cindy", "Alan"]
+        default_users = ["Stacey", "Aaron", "Daisy", "Cindy", "Alan"]
         user = st.selectbox(
             "Select User",
             options=["Select a user"] + default_users,
@@ -96,10 +96,20 @@ if check_password():
         dates = dates[::2]  # Skip every other week
         week_starts = [date.start_time.strftime('%m/%d/%Y') for date in dates]
         
-        # Add week selector
+        # Find the current bi-weekly period
+        current_period = pd.Timestamp.now().to_period('W-TUE')
+        current_period_index = None
+        
+        for i, date in enumerate(dates):
+            if current_period >= date and current_period < (date + 2):  # Check if current date falls within the bi-weekly period
+                current_period_index = i
+                break
+        
+        # Add week selector with default to current period if found
         selected_week = st.selectbox(
             "Select Week Beginning",
             options=week_starts,
+            index=current_period_index if current_period_index is not None else 0,
             format_func=lambda x: f"Week of {x}"
         )
         
