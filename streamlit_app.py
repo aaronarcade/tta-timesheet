@@ -450,7 +450,7 @@ if check_password():
                 updated_data = []
                 # st.write(all_data)
                 for row in all_data:
-                    st.write(row)
+                    # st.write(row)
                     if (
                         row['User'] in users_to_display and
                         pd.to_datetime(row['Date']) >= pd.to_datetime(week_start) and
@@ -467,7 +467,7 @@ if check_password():
                     sheet.append_rows([list(updated_data[0].keys())])  # Headers
                     sheet.append_rows([list(r.values()) for r in updated_data])
                 
-                st.success("Payment entries have been reset for the selected period.")
+                # st.success("Payment entries have been reset for the selected period.")
                 st.rerun()
     else:
         st.write("Please select a user")
