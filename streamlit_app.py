@@ -381,30 +381,45 @@ if check_password():
                 if (
                     row['User'] in users_to_display and
                     pd.to_datetime(row['Date']) >= pd.to_datetime(week_start) and
-                    pd.to_datetime(row['Date']) <= pd.to_datetime(week_end)
+                    pd.to_datetime(row['Date']) <= pd.to_datetime(week_end) and
+                    float(row.get('Hours', 0)) > 0
                 )
             ]
             
-            all_entered = all(
-                row.get('EnteredPayment', 0) == 1 
+            # Check if any row in the period has EnteredPayment
+            payment_entered = any(
+                row.get('EnteredPayment', '') != '' 
                 for row in current_period_data
             ) if current_period_data else False
             
-            if all_entered:
-                st.success("All hours in this period have been entered for payment")
-            elif st.button("Enter for Payment", type="primary", key="payment_button", disabled=all_entered):
+            if payment_entered:
+                try:
+                    # Get the latest payment timestamp from all rows in current period
+                    payment_times = [pd.to_datetime(row.get('EnteredPayment')) 
+                                   for row in current_period_data 
+                                   if pd.notna(pd.to_datetime(row.get('EnteredPayment', '')))]
+                    if payment_times:
+                        latest_payment = max(payment_times)
+                        formatted_time = latest_payment.strftime('%B %d, %Y at %I:%M %p')
+                        st.success(f"All hours in this period have been entered for payment on {formatted_time}")
+                    else:
+                        st.success("All hours in this period have been entered for payment")
+                except (ValueError, AttributeError, KeyError):
+                    st.success("All hours in this period have been entered for payment")
+            elif st.button("Enter for Payment", type="primary", key="payment_button"):
                 # Get all existing data
                 all_data = sheet.get_all_records()
                 
-                # Update EnteredPayment to 1 for matching rows
+                # Update EnteredPayment to datetime for matching rows
                 updated_data = []
+                payment_timestamp = pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')
                 for row in all_data:
                     if (
                         row['User'] in users_to_display and
                         pd.to_datetime(row['Date']) >= pd.to_datetime(week_start) and
                         pd.to_datetime(row['Date']) <= pd.to_datetime(week_end)
                     ):
-                        row['EnteredPayment'] = 1
+                        row['EnteredPayment'] = payment_timestamp
                     updated_data.append(row)
                 
                 # Clear and update sheet
@@ -413,7 +428,7 @@ if check_password():
                     sheet.append_rows([list(updated_data[0].keys())])  # Headers
                     sheet.append_rows([list(r.values()) for r in updated_data])
                 
-                st.success(f"Payment entry recorded for all users in selected period")
-                st.experimental_rerun()  # Rerun to update the button state
+                formatted_time = pd.to_datetime(payment_timestamp).strftime('%B %d, %Y at %I:%M %p')
+                st.success(f"Payment entry recorded for all users in selected period on {formatted_time}")
     else:
         st.write("Please select a user")
