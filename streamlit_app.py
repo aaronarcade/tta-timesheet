@@ -96,11 +96,33 @@ if check_password():
         dates = dates[::2]  # Skip every other week
         week_starts = [date.start_time.strftime('%m/%d/%Y') for date in dates]
         
+        # Find the current bi-weekly period
+        current_date = pd.Timestamp.now()
+        current_period = current_date.to_period('W-TUE')
+        current_period_start = current_period.start_time
+
+        # Calculate the next period start
+        next_period_start = current_period_start + pd.Timedelta(weeks=2)
+
+        # If current date is in the next period, adjust forward
+        if current_date >= next_period_start:
+            current_period_start = next_period_start
+        # If current date is before the period start, adjust backward
+        elif current_date < current_period_start:
+            current_period_start -= pd.Timedelta(weeks=2)
+
+        # Format current period start to match week_starts format
+        current_period_str = current_period_start.strftime('%m/%d/%Y')
+        
+        # Set default index to current period if it exists in week_starts
+        default_index = week_starts.index(current_period_str) if current_period_str in week_starts else 0
+        
         # Add week selector
         selected_week = st.selectbox(
             "Select Week Beginning",
             options=week_starts,
-            format_func=lambda x: f"Week of {x}"
+            format_func=lambda x: f"Week of {x}",
+            index=default_index
         )
         
         # Convert selected week to datetime and create full date range
@@ -182,7 +204,7 @@ if check_password():
                             ),
                             "Regular": st.column_config.NumberColumn(
                                 "Regular",
-                                width=colwidth-5,
+                                width=colwidth-10,
                                 min_value=0,
                                 max_value=24,
                                 step=0.25,
@@ -198,7 +220,7 @@ if check_password():
                             ),
                             "Sick": st.column_config.NumberColumn(
                                 "Sick",
-                                width=colwidth-20,
+                                width=colwidth-25,
                                 min_value=0,
                                 max_value=24,
                                 step=0.25,
@@ -206,7 +228,7 @@ if check_password():
                             ),
                             "Vacation": st.column_config.NumberColumn(
                                 "Vacation",
-                                width=colwidth,
+                                width=colwidth-5,
                                 min_value=0,
                                 max_value=24,
                                 step=0.25,
@@ -296,23 +318,27 @@ if check_password():
                             ),
                             "Regular": st.column_config.NumberColumn(
                                 "Regular",
-                                width=colwidth,
+                                width=colwidth-10,
                                 disabled=True,
+                                format="%.2f"
                             ),
                             "Holiday": st.column_config.NumberColumn(
                                 "Holiday",
-                                width=colwidth,
+                                width=colwidth-5,
                                 disabled=True,
+                                format="%.2f"
                             ),
                             "Sick": st.column_config.NumberColumn(
                                 "Sick",
-                                width=colwidth,
+                                width=colwidth-25,
                                 disabled=True,
+                                format="%.2f"
                             ),
                             "Vacation": st.column_config.NumberColumn(
                                 "Vacation",
-                                width=colwidth,
+                                width=colwidth-5,
                                 disabled=True,
+                                format="%.2f"
                             )
                         },
                         key=f"sums_editor_{current_user}"
