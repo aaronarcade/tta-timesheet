@@ -165,8 +165,8 @@ if check_password():
                 (df['Date'] >= week_start) #& 
                 # (df['Date'] <= week_end)
             ]
-            st.write(current_user, week_start, week_end) # data is good here
-            st.write(user_df)
+            # st.write(current_user, week_start, week_end) # data is good here
+            # st.write(user_df)
             
             if user == "Alan" and user_df.empty:
                 st.info(f"No hours entered for {current_user}")
