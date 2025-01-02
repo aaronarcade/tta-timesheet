@@ -321,7 +321,7 @@ if check_password():
                             display_df = edited_df
                     
                     # Add caption and calculate sums
-                    st.caption("Bi-weekly Totals")
+                    st.caption(f"Bi-weekly Totals for the week of {selected_week} - {week_end.strftime('%m/%d/%Y')}")
                     sums_df = pd.DataFrame({
                         'Date': ['Totals'],
                         'Regular': [display_df['Regular'].sum()],
