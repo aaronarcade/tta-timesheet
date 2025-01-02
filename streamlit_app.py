@@ -56,7 +56,7 @@ if check_password():
     # Get all data
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
-    
+    # st.write(df) # data is good here
     # Convert Date column to datetime
     df['Date'] = pd.to_datetime(df['Date'])
     
@@ -94,8 +94,11 @@ if check_password():
         future_date = current_date + pd.Timedelta(weeks=20)
         
         # Create date range including future dates
+        start_date = pd.Timestamp('2024-12-27')  # Set fixed start date
+        future_date = pd.Timestamp.now() + pd.Timedelta(weeks=20)
+
         all_dates = pd.date_range(
-            start=df['Date'].min(),
+            start=start_date,
             end=future_date,
             freq='D'
         )
@@ -113,22 +116,21 @@ if check_password():
         current_period = current_date.to_period('W-TUE')
         current_period_start = current_period.start_time
 
-        # Calculate the next period start
-        next_period_start = current_period_start + pd.Timedelta(weeks=2)
-
-        # If current date is in the next period, adjust forward
-        if current_date >= next_period_start:
-            current_period_start = next_period_start
-        # If current date is before the period start, adjust backward
-        elif current_date < current_period_start:
+        # If current date is before the period start, adjust back
+        if current_date < current_period_start:
             current_period_start -= pd.Timedelta(weeks=2)
 
         # Format current period start to match week_starts format
         current_period_str = current_period_start.strftime('%m/%d/%Y')
-        
-        # Set default index to current period if it exists in week_starts
-        default_index = week_starts.index(current_period_str) if current_period_str in week_starts else 0
-        
+
+        # Find the closest past week start (or today if it's a week start)
+        past_weeks = [w for w in week_starts if pd.to_datetime(w) <= current_date]
+        if past_weeks:
+            default_week = past_weeks[-1]  # Get the most recent past week
+            default_index = week_starts.index(default_week)
+        else:
+            default_index = 0
+
         # Initialize selected_week in session state if not already set
         if st.session_state.selected_week is None:
             st.session_state.selected_week = week_starts[default_index]
@@ -160,14 +162,17 @@ if check_password():
             # Filter for current user and date range
             user_df = df[
                 (df['User'] == current_user) & 
-                (df['Date'] >= week_start) & 
+                # (df['Date'] >= week_start) & 
                 (df['Date'] <= week_end)
             ]
+            # st.write(current_user, week_start, week_end) # data is good here
+            # st.write(week_end)
             
             if user == "Alan" and user_df.empty:
                 st.info(f"No hours entered for {current_user}")
             
             if not user_df.empty or user != "Alan":
+                # st.write(user_df) # data is good here
                 # Pivot and prepare data
                 pivoted_df = user_df.pivot_table(
                     index='Date',
