@@ -162,11 +162,11 @@ if check_password():
             # Filter for current user and date range
             user_df = df[
                 (df['User'] == current_user) & 
-                # (df['Date'] >= week_start) & 
-                (df['Date'] <= week_end)
+                (df['Date'] >= week_start) #& 
+                # (df['Date'] <= week_end)
             ]
-            # st.write(current_user, week_start, week_end) # data is good here
-            # st.write(week_end)
+            st.write(current_user, week_start, week_end) # data is good here
+            st.write(user_df)
             
             if user == "Alan" and user_df.empty:
                 st.info(f"No hours entered for {current_user}")
@@ -272,10 +272,11 @@ if check_password():
                             current_timestamp = pd.Timestamp.now(tz=eastern).strftime('%Y-%m-%d %H:%M:%S')
                             
                             for _, row in edited_df.iterrows():
-                                # Parse the date correctly by adding current year
+                                # Parse the date correctly using the year from selected_week
                                 date_str = row['Date'].split(' ')[1]  # Get '12/11' from 'Wed 12/11'
                                 month, day = date_str.split('/')
-                                full_date = f"{pd.Timestamp.now().year}-{month}-{day}"
+                                selected_year = week_start.year  # Get year from the selected week
+                                full_date = f"{selected_year}-{month}-{day}"
                                 
                                 for time_type in ['Regular', 'Sick', 'Vacation', 'Holiday']:
                                     # Replace None with 0 and ensure it's a valid number
@@ -321,7 +322,7 @@ if check_password():
                             display_df = edited_df
                     
                     # Add caption and calculate sums
-                    st.caption(f"Bi-weekly Totals for the week of {selected_week} - {week_end.strftime('%m/%d/%Y')}")
+                    st.subheader(f"Bi-weekly Totals for the week of {selected_week} - {week_end.strftime('%m/%d/%Y')}")
                     sums_df = pd.DataFrame({
                         'Date': ['Totals'],
                         'Regular': [display_df['Regular'].sum()],
