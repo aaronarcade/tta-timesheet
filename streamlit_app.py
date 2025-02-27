@@ -96,9 +96,9 @@ if check_password():
 
     # Display the logo
     st.image(
-        "tta_logo.png",  # Replace with the path to your logo
-        width=200,  # Adjust width as needed
-        use_column_width=False
+        "tta_logo.png",  
+        use_container_width=False,  # Replace deprecated use_column_width
+        width=200
     )
 
     # Main content
