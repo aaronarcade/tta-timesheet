@@ -1,14 +1,33 @@
 import streamlit as st
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import firebase_admin
+from firebase_admin import credentials, firestore
 import pandas as pd
 import pytz
+from datetime import datetime
 
 # Set page to wide mode and title
 st.set_page_config(
     page_title="TTA Timesheet",
     layout="wide"
 )
+
+# Initialize Firebase (only do this once)
+if not firebase_admin._apps:
+    cred = credentials.Certificate({
+        "type": st.secrets["firebase"]["type"],
+        "project_id": st.secrets["firebase"]["project_id"],
+        "private_key_id": st.secrets["firebase"]["private_key_id"],
+        "private_key": st.secrets["firebase"]["private_key"],
+        "client_email": st.secrets["firebase"]["client_email"],
+        "client_id": st.secrets["firebase"]["client_id"],
+        "auth_uri": st.secrets["firebase"]["auth_uri"],
+        "token_uri": st.secrets["firebase"]["token_uri"],
+        "auth_provider_x509_cert_url": st.secrets["firebase"]["auth_provider_x509_cert_url"],
+        "client_x509_cert_url": st.secrets["firebase"]["client_x509_cert_url"]
+    })
+    firebase_admin.initialize_app(cred)
+
+db = firestore.client()
 
 # Initialize session states
 if 'authenticated' not in st.session_state:
@@ -42,23 +61,22 @@ def check_password():
     return True
 
 if check_password():
-    # Set up Google Sheets authentication
-    scope = ['https://spreadsheets.google.com/feeds',
-             'https://www.googleapis.com/auth/drive']
+    # Get all data from Firestore
+    docs = db.collection('sheet').stream()
+    records = []
+    for doc in docs:
+        doc_data = doc.to_dict()
+        if 'records' in doc_data:  # Check if document has records array
+            for record in doc_data['records']:
+                record['id'] = doc.id  # Keep track of which document it came from
+                records.append(record)
 
-    credentials = ServiceAccountCredentials.from_json_keyfile_dict(
-        st.secrets["gcp_service_account"], scope)
-    client = gspread.authorize(credentials)
-
-    # Open the Google Sheet (replace with your sheet URL or key)
-    sheet = client.open_by_key('1GVEPaF4Tzw84s7tGyp8tNCxzqNO6u9QntLKQ5_oatOM').sheet1
-
-    # Get all data
-    data = sheet.get_all_records()
-    df = pd.DataFrame(data)
-    # st.write(df) # data is good here
-    # Convert Date column to datetime
-    df['Date'] = pd.to_datetime(df['Date'])
+    df = pd.DataFrame(records)
+    if not df.empty and 'Date' in df.columns:
+        # Ensure all dates are timezone-aware
+        df['Date'] = pd.to_datetime(df['Date'], format='mixed').apply(
+            lambda x: x.tz_convert('US/Eastern') if x.tz else x.tz_localize('US/Eastern')
+        )
     
     # Initialize user variable
     user = "Stacey"
@@ -76,12 +94,11 @@ if check_password():
         if user != "Select a user":
             st.success(f"Hours for {user} successfully loaded. Please close sidebar with arrow above.")
 
-    # Use st.logo to display the logo in the app
-    st.logo(
+    # Display the logo
+    st.image(
         "tta_logo.png",  # Replace with the path to your logo
-        size="large",  # You can choose "small", "medium", or "large"
-        link="https://tintoyarcade.com",  # Optional: Add a link to your website
-        icon_image="tta_logo.png"  # Optional: Add a smaller icon for when the sidebar is closed
+        width=200,  # Adjust width as needed
+        use_column_width=False
     )
 
     # Main content
@@ -92,13 +109,9 @@ if check_password():
         # Get current date and create future dates
         current_date = pd.Timestamp.now()
         future_date = current_date + pd.Timedelta(weeks=20)
-        
-        # Create date range including future dates
-        start_date = pd.Timestamp('2024-12-27')  # Set fixed start date
-        future_date = pd.Timestamp.now() + pd.Timedelta(weeks=20)
 
         all_dates = pd.date_range(
-            start=start_date,
+            start=current_date,
             end=future_date,
             freq='D'
         )
@@ -160,19 +173,35 @@ if check_password():
                 st.subheader(f"Hours for {current_user}")
             
             # Filter for current user and date range
-            user_df = df[
-                (df['User'] == current_user) & 
-                (df['Date'] >= week_start) #& 
-                # (df['Date'] <= week_end)
-            ]
-            # st.write(current_user, week_start, week_end) # data is good here
-            # st.write(user_df)
+            if not df.empty and 'Date' in df.columns:
+                # Convert week_start and week_end to timezone-aware timestamps
+                week_start_tz = pd.to_datetime(week_start).tz_localize('US/Eastern')
+                week_end_tz = pd.to_datetime(week_end).tz_localize('US/Eastern')
+                
+                user_df = df[
+                    (df['User'] == current_user) & 
+                    (df['Date'] >= week_start_tz) &
+                    (df['Date'] <= week_end_tz)
+                ]
+            else:
+                user_df = pd.DataFrame(columns=['User', 'Date', 'TimeType', 'Hours', 'LastUpdated', 'EnteredPayment'])
             
             if user == "Alan" and user_df.empty:
                 st.info(f"No hours entered for {current_user}")
             
             if not user_df.empty or user != "Alan":
-                # st.write(user_df) # data is good here
+                # Create complete date range
+                date_df = pd.DataFrame({
+                    'Date': pd.date_range(
+                        start=week_start,
+                        end=week_end,
+                        freq='D'
+                    )
+                })
+                
+                # Make date_df timezone-aware to match user_df
+                date_df['Date'] = date_df['Date'].dt.tz_localize('US/Eastern')
+
                 # Pivot and prepare data
                 pivoted_df = user_df.pivot_table(
                     index='Date',
@@ -182,14 +211,11 @@ if check_password():
                     fill_value=0
                 )
                 
-                # Create complete date range
-                date_df = pd.DataFrame({'Date': pd.date_range(start=week_start, end=week_end, freq='D')})
-                
                 # Merge with complete date range
                 pivoted_df = pd.merge(
-                    date_df.set_index('Date'),
+                    date_df,
                     pivoted_df,
-                    left_index=True,
+                    left_on='Date',
                     right_index=True,
                     how='left'
                 ).fillna(0)
@@ -278,48 +304,50 @@ if check_password():
                                 selected_year = week_start.year  # Get year from the selected week
                                 full_date = f"{selected_year}-{month}-{day}"
                                 
+                                # Create a record for each non-zero value
                                 for time_type in ['Regular', 'Sick', 'Vacation', 'Holiday']:
-                                    # Replace None with 0 and ensure it's a valid number
-                                    hours = 0 if pd.isna(row[time_type]) else float(row[time_type])
-                                    if hours != 0:  # Only add non-zero entries
+                                    hours = row[time_type]  # Get the value directly from the DataFrame
+                                    if hours > 0:  # Only add if hours are greater than 0
                                         records.append({
                                             'User': current_user,
                                             'Date': full_date,
                                             'TimeType': time_type,
-                                            'Hours': hours,
-                                            'LastUpdated': current_timestamp
+                                            'Hours': float(hours),  # Ensure it's a float
+                                            'LastUpdated': current_timestamp,
+                                            'EnteredPayment': ''  # Default to empty string for false
                                         })
                             
                             # Get all existing data
-                            all_data = sheet.get_all_records()
-                            
+                            existing_docs = db.collection('sheet').stream()
+                            all_data = {}
+                            for doc in existing_docs:
+                                doc_data = doc.to_dict()
+                                if 'records' in doc_data:
+                                    user = doc.id
+                                    all_data[user] = doc_data['records']
+
                             # Filter out records for current user and date range
-                            filtered_data = [
-                                row for row in all_data 
-                                if not (
-                                    row['User'] == current_user and
-                                    pd.to_datetime(row['Date']) >= pd.to_datetime(week_start) and
-                                    pd.to_datetime(row['Date']) <= pd.to_datetime(week_end)
-                                )
-                            ]
-                            
-                            # Combine filtered data with new records
-                            updated_data = filtered_data + records
-                            
-                            # Clear and update sheet
-                            sheet.clear()
-                            if updated_data:
-                                sheet.append_rows([list(updated_data[0].keys())])  # Headers
-                                sheet.append_rows([list(r.values()) for r in updated_data])
-                            
-                            # Reload the data to get latest timestamp
-                            data = sheet.get_all_records()
-                            df = pd.DataFrame(data)
-                            df['Date'] = pd.to_datetime(df['Date'])
-                            
-                            st.success(f"Hours saved for week of {selected_week}")
-                            st.balloons()
-                            display_df = edited_df
+                            if current_user in all_data:
+                                filtered_data = [
+                                    record for record in all_data[current_user]
+                                    if not (
+                                        pd.to_datetime(record['Date']).tz_localize('US/Eastern') >= week_start.tz_localize('US/Eastern') and
+                                        pd.to_datetime(record['Date']).tz_localize('US/Eastern') <= week_end.tz_localize('US/Eastern')
+                                    )
+                                ]
+                            else:
+                                filtered_data = []
+
+                            # Add new records
+                            filtered_data.extend(records)
+
+                            # Update the document for current user
+                            db.collection('sheet').document(current_user).set({
+                                'records': filtered_data
+                            })
+
+                            # Reload the data
+                            st.rerun()
                     
                     # Add caption and calculate sums
                     st.subheader(f"Bi-weekly Totals for the week of {selected_week} - {week_end.strftime('%m/%d/%Y')}")
@@ -393,11 +421,11 @@ if check_password():
             
             # Check if all displayed rows are already entered for payment
             current_period_data = [
-                row for row in data 
+                row for row in docs.to_dict() 
                 if (
                     row['User'] in users_to_display and
-                    pd.to_datetime(row['Date']) >= pd.to_datetime(week_start) and
-                    pd.to_datetime(row['Date']) <= pd.to_datetime(week_end) and
+                    pd.to_datetime(row['Date']).tz_localize('UTC') >= pd.to_datetime(week_start).tz_localize('UTC') and
+                    pd.to_datetime(row['Date']).tz_localize('UTC') <= pd.to_datetime(week_end).tz_localize('UTC') and
                     float(row.get('Hours', 0)) > 0
                 )
             ]
@@ -424,7 +452,7 @@ if check_password():
                     st.success("All hours in this period have been entered for payment")
             elif st.button("Enter for Payment", type="primary", key="payment_button"):
                 # Get all existing data
-                all_data = sheet.get_all_records()
+                all_data = docs.to_dict()
                 
                 # Update EnteredPayment to datetime for matching rows
                 updated_data = []
@@ -432,17 +460,14 @@ if check_password():
                 for row in all_data:
                     if (
                         row['User'] in users_to_display and
-                        pd.to_datetime(row['Date']) >= pd.to_datetime(week_start) and
-                        pd.to_datetime(row['Date']) <= pd.to_datetime(week_end)
+                        pd.to_datetime(row['Date']).tz_localize('UTC') >= pd.to_datetime(week_start).tz_localize('UTC') and
+                        pd.to_datetime(row['Date']).tz_localize('UTC') <= pd.to_datetime(week_end).tz_localize('UTC')
                     ):
                         row['EnteredPayment'] = payment_timestamp
                     updated_data.append(row)
                 
                 # Clear and update sheet
-                sheet.clear()
-                if updated_data:
-                    sheet.append_rows([list(updated_data[0].keys())])  # Headers
-                    sheet.append_rows([list(r.values()) for r in updated_data])
+                db.collection('sheet').document(user).set(updated_data)
                 
                 formatted_time = pd.to_datetime(payment_timestamp).strftime('%B %d, %Y at %I:%M %p')
                 st.success(f"Payment entry recorded for all users in selected period on {formatted_time}")
@@ -450,7 +475,7 @@ if check_password():
                  # Add "Reset Week" button
             if st.button("Reset Week", type="secondary", key="reset_week_button"):
                 # Get all existing data
-                all_data = sheet.get_all_records()
+                all_data = docs.to_dict()
                 
                 # Update EnteredPayment to empty for matching rows
                 updated_data = []
@@ -459,8 +484,8 @@ if check_password():
                     # st.write(row)
                     if (
                         row['User'] in users_to_display and
-                        pd.to_datetime(row['Date']) >= pd.to_datetime(week_start) and
-                        pd.to_datetime(row['Date']) <= pd.to_datetime(week_end) and
+                        pd.to_datetime(row['Date']).tz_localize('UTC') >= pd.to_datetime(week_start).tz_localize('UTC') and
+                        pd.to_datetime(row['Date']).tz_localize('UTC') <= pd.to_datetime(week_end).tz_localize('UTC') and
                         float(row.get('Hours', 0)) > 0
                     ):
                     
@@ -468,10 +493,7 @@ if check_password():
                     updated_data.append(row)
                 
                 # Clear and update sheet
-                sheet.clear()
-                if updated_data:
-                    sheet.append_rows([list(updated_data[0].keys())])  # Headers
-                    sheet.append_rows([list(r.values()) for r in updated_data])
+                db.collection('sheet').document(user).set(updated_data)
                 
                 # st.success("Payment entries have been reset for the selected period.")
                 st.rerun()
